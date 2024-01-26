@@ -33,21 +33,42 @@ import {
 type Code = string;
 
 /** Generates TypeBox code from a given JSON schema */
-export const schema2typebox = async (jsonSchema: string) => {
+export const schema2typebox = async (
+  jsonSchema: string,
+  schemaExportName: string | undefined,
+  typeExportName: string | undefined,
+  exportType: boolean,
+  includeImports: boolean
+) => {
   const schemaObj = JSON.parse(jsonSchema);
   const dereferencedSchema = (await $Refparser.dereference(
     schemaObj
   )) as JSONSchema7Definition;
 
   const typeBoxType = collect(dereferencedSchema);
-  const exportedName = createExportNameForSchema(dereferencedSchema);
-  const exportedType = createExportedTypeForName(exportedName);
+  const exportedName =
+    schemaExportName ?? createExportNameForSchema(dereferencedSchema);
+  const exportedType = createExportedTypeForName(
+    typeExportName ?? exportedName
+  );
 
-  return `${createImportStatements()}
+  const parts: string[] = [];
+  if (includeImports) {
+    parts.push(createImportStatements());
+    parts.push("");
+  }
 
-${typeBoxType.includes("OneOf([") ? createOneOfTypeboxSupportCode() : ""}
-${exportedType}
-export const ${exportedName} = ${typeBoxType}`;
+  if (typeBoxType.includes("OneOf([")) {
+    parts.push(createOneOfTypeboxSupportCode());
+  }
+
+  if (exportType) {
+    parts.push(exportedType);
+  }
+
+  parts.push(`export const ${exportedName} = ${typeBoxType}`);
+
+  return parts.join("\n");
 };
 
 /**
@@ -144,6 +165,7 @@ const addOptionalModifier = (
 };
 
 export const parseObject = (schema: ObjectSchema) => {
+  const schemaOptions = parseSchemaOptions(schema);
   const properties = schema.properties;
   const requiredProperties = schema.required;
   if (properties === undefined) {
@@ -160,14 +182,19 @@ export const parseObject = (schema: ObjectSchema) => {
       )}`
     );
   }, "");
-  return `Type.Object({${code}})`;
+  return schemaOptions === undefined
+    ? `Type.Object({${code}})`
+    : `Type.Object({${code}}, ${schemaOptions})`;
 };
 
 export const parseEnum = (schema: EnumSchema) => {
+  const schemaOptions = parseSchemaOptions(schema);
   const code = schema.enum.reduce<string>((acc, schema) => {
     return acc + `${acc === "" ? "" : ","} ${parseType(schema)}`;
   }, "");
-  return `Type.Union([${code}])`;
+  return schemaOptions === undefined
+    ? `Type.Union([${code}])`
+    : `Type.Union([${code}], ${schemaOptions})`;
 };
 
 export const parseConst = (schema: ConstSchema): Code => {
@@ -272,10 +299,14 @@ export const parseTypeName = (
   schema: JSONSchema7 = {}
 ): Code => {
   const schemaOptions = parseSchemaOptions(schema);
-  if (type === "number" || type === "integer") {
+  if (type === "number") {
     return schemaOptions === undefined
       ? "Type.Number()"
       : `Type.Number(${schemaOptions})`;
+  } else if (type === "integer") {
+    return schemaOptions === undefined
+      ? "Type.Integer()"
+      : `Type.Integer(${schemaOptions})`;
   } else if (type === "string") {
     return schemaOptions === undefined
       ? "Type.String()"
@@ -303,7 +334,8 @@ const parseSchemaOptions = (schema: JSONSchema7): Code | undefined => {
       key !== "not" &&
       key !== "properties" &&
       key !== "required" &&
-      key !== "const"
+      key !== "const" &&
+      key !== "enum"
     );
   });
   if (properties.length === 0) {

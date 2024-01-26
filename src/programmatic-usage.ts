@@ -7,6 +7,11 @@ export type Schema2TypeboxOptions = {
    * The given JSON schema as utf-8 encoded string.
    */
   input: string;
+  includeComment?: boolean;
+  includeImports?: boolean;
+  schemaExportName?: string;
+  typeExportName?: string;
+  exportType?: boolean;
 };
 
 /**
@@ -19,8 +24,19 @@ export type Schema2TypeboxOptions = {
  **/
 export const schema2typebox = async ({
   input,
+  includeComment = true,
+  includeImports = true,
+  exportType = true,
+  schemaExportName,
+  typeExportName,
 }: Schema2TypeboxOptions): Promise<string> => {
-  const generatedTypeboxCode = await Schema2Typebox(input);
+  const generatedTypeboxCode = await Schema2Typebox(
+    input,
+    schemaExportName,
+    typeExportName,
+    exportType,
+    includeImports
+  );
 
   // post-processing
   // 1. format code
@@ -32,8 +48,11 @@ export const schema2typebox = async ({
     parser: "typescript",
     ...prettierConfig,
   });
-  // 2. add comment that code is auto generated
-  const result = addCommentThatCodeIsGenerated.run(formattedResult);
+  // 2. add comment that code is auto generated (if wanted)
+  let result = formattedResult;
+  if (includeComment) {
+    result = addCommentThatCodeIsGenerated.run(formattedResult);
+  }
   return result;
 };
 

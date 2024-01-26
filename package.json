@@ -74,5 +74,8 @@
     "nodemon": "2.0.22",
     "shelljs": "0.8.5"
   },
+  "prettier": {
+    "singleQuote": false
+  },
   "packageManager": "yarn@3.5.1"
 }

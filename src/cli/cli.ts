@@ -12,7 +12,10 @@ export const runCli = async () => {
       output: "o",
       help: "h",
     },
+    boolean: ["comment", "imports"],
     default: {
+      comment: true,
+      imports: true,
       input: "schema.json",
       output: "generated-typebox.ts",
     },
@@ -29,6 +32,8 @@ export const runCli = async () => {
   );
   const typeboxCode = await schema2typebox({
     input: inputFileAsString,
+    includeComment: args.comment,
+    includeImports: args.imports,
   });
 
   const generatedCodeStream = Readable.from(typeboxCode.split(/(\r\n|\r|\n)/));
